@@ -10,8 +10,6 @@ The world is unpredictable. Layoffs happen. Boilers die at 2am in January. A cli
 
 It's not a budgeting app, and it doesn't care about your net worth. It asks one blunt question — *if the bad thing happens, when do you run out of money to cover rent?* — and answers it by actually simulating your assets draining in the order you could truly reach them, because "I have savings" and "I can spend that money this month" are not the same sentence.
 
-Debts are modelled as a minimum monthly payment against a balance, amortized with no interest. A real loan's balance falls slower than that, so this simulation can have the payment drop out — and runway look better — sooner than it would in reality.
-
 ## Sample output
 
 ![Sample report page, generated from fictional data](docs/sample-report.png)
@@ -25,6 +23,14 @@ Debts are modelled as a minimum monthly payment against a balance, amortized wit
 3. `./run.sh report your-household.toml -o report.pdf` — turns that file into a one-page PDF like the one above.
 
 Everything runs locally. `.gitignore` refuses to let a real household file or a generated PDF anywhere near a commit, on purpose.
+
+## Assumptions
+
+Simplifications the model makes, in the direction they bias the result:
+
+- **No interest on debt.** Each debt is a minimum monthly payment against a balance, amortized straight-line with no interest. A real loan's balance falls slower than that, so the payment can drop out of the simulation — and runway look better — sooner than it would in reality.
+- **Assets become reachable in 30-day steps.** An asset's `access_days` is bucketed into whole months (`ceil(access_days / 30)`), so a 30-day asset counts as reachable in month 1 and a 31-day asset in month 2. That rounding can shift an insolvency date by a month either way.
+- **Discretionary spend is cut, not assets sold, while a shock is depressing income.** A household simulated as fully employed still funds takeaways and streaming from savings if it wants to; one whose income is currently below baseline (job loss, reduced hours) is modelled as cutting that spending first, and only resumes funding it from assets once income recovers.
 
 ## Why this exists
 

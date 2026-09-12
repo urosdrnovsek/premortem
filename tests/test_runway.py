@@ -187,6 +187,40 @@ def test_variable_spend_is_not_cut_during_notice_period_before_shock_fires():
     assert month3.variable_spend_paid == Decimal("0")
 
 
+def test_shock_active_lifts_when_income_recovers_mid_horizon():
+    # A shock that recovers (new job, benefits ending) should let discretionary
+    # spend draw on savings again once income is actually back, rather than
+    # staying cut for the rest of the horizon just because a shock happened once.
+    h = make_household(
+        flows=(
+            model.Flow(name="Salary", kind=model.FlowKind.INCOME, monthly_amount=Decimal("1200"), owner="You"),
+            model.Flow(name="Rent", kind=model.FlowKind.FIXED_EXPENSE, monthly_amount=Decimal("1000")),
+            model.Flow(name="Groceries", kind=model.FlowKind.VARIABLE_EXPENSE, monthly_amount=Decimal("300")),
+        ),
+        assets=(model.Asset(name="Cash", value=Decimal("2200"), access_days=0),),
+        horizon_months=3,
+    )
+    shock = shocks.Shock(
+        key="test_recovery", label="test", description="",
+        deltas=(
+            shocks.Delta(month=0, target=shocks.DeltaTarget.PERSON_INCOME, op=shocks.DeltaOp.SET,
+                         value=Decimal("0"), ref="You"),
+            shocks.Delta(month=2, target=shocks.DeltaTarget.PERSON_INCOME, op=shocks.DeltaOp.SET,
+                         value=Decimal("1200"), ref="You"),
+        ),
+    )
+    proj = runway.project(h, shock)
+    assert proj.insolvent_month is None
+    # months 0-1: income lost, shock active -> discretionary spend cut
+    assert proj.months[0].variable_spend_paid == Decimal("0")
+    assert proj.months[1].variable_spend_paid == Decimal("0")
+    # month 2: income is back to its baseline -> shock is no longer active, so the
+    # remaining 100 of variable spend is funded by drawing on savings again
+    month2 = proj.months[2]
+    assert month2.variable_spend_paid == Decimal("300")
+    assert sum(d.net_amount for d in month2.draws) == Decimal("100")
+
+
 def test_redundancy_lump_sum_with_no_assets_does_not_crash():
     # Zero-asset household: the redundancy payout has nowhere real to land, but
     # project() must still complete instead of KeyError-ing in the waterfall.
@@ -225,7 +259,9 @@ def test_major_expense_competes_with_fixed_obligations_same_month():
     )
     shock = shocks.major_expense(h)
     proj = runway.project(h, shock)
-    # income 2000 exactly covers fixed 1000 + the 1000 boiler bill; with a shock
-    # active, variable spend is cut rather than funded from the 1200 cash pool.
+    # income 2000 exactly covers fixed 1000 + the 1000 boiler bill, with nothing
+    # left over for variable spend. A one-off expense doesn't reduce income, so
+    # it's still funded from the 1200 cash pool rather than cut.
     assert proj.months[0].solvent
     assert proj.months[0].one_off_need == Decimal("1000")
+    assert proj.months[0].variable_spend_paid == Decimal("300")

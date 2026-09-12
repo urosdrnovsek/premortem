@@ -18,13 +18,6 @@ import math
 from model import Household, FlowKind
 from shocks import Shock, Delta, DeltaOp, DeltaTarget
 
-# Targets whose deltas mean income is actually impaired right now, as opposed to a
-# one-off hit like major_expense or a redundancy lump sum landing (DeltaTarget.ASSET).
-# Discretionary spend gets cut only while one of these is in effect.
-_INCOME_SHOCK_TARGETS = frozenset(
-    {DeltaTarget.PERSON_INCOME, DeltaTarget.JOB_LINKED_VARIABLE, DeltaTarget.BENEFITS_FLOOR}
-)
-
 
 @dataclass(frozen=True)
 class AssetDraw:
@@ -120,6 +113,11 @@ def project(household: Household, shock: Shock) -> Projection:
     )
     debt_balances: dict[str, Decimal] = {d.name: d.balance for d in household.debts}
 
+    baseline_income_total = sum(
+        (f.monthly_amount for p in household.people for f in household.income_flows_for(p.name)),
+        Decimal("0"),
+    )
+
     variable_flows = [f for f in household.flows if f.kind == FlowKind.VARIABLE_EXPENSE]
 
     deltas_by_month: dict[int, list[Delta]] = {}
@@ -167,9 +165,10 @@ def project(household: Household, shock: Shock) -> Projection:
             Decimal("0"),
         )
 
-        shock_active = any(
-            d.month <= month for d in shock.deltas if d.target in _INCOME_SHOCK_TARGETS
-        )
+        # Income below what it'd be with nothing wrong - not "some delta fired at
+        # some point" - so a recovery (new job, benefits ending) lifts the cut on
+        # its own, and a one-off ASSET event (major_expense) never trips it at all.
+        shock_active = income_total < baseline_income_total
 
         debt_due = sum(
             (min(debt_balances[d.name], d.minimum_monthly_payment)
@@ -200,9 +199,13 @@ def project(household: Household, shock: Shock) -> Projection:
                 variable_spend_paid = min(variable_spend_planned, leftover_income + var_covered)
                 draws = draws + var_draws
 
-        for d in household.debts:
-            if debt_balances[d.name] > 0:
-                debt_balances[d.name] -= min(debt_balances[d.name], d.minimum_monthly_payment)
+        if solvent:
+            # Decoupled from the variable-spend branch above on purpose: this is a
+            # separate decision (only decrement what was actually paid this month)
+            # rather than an accident of both being nested under the same check.
+            for d in household.debts:
+                if debt_balances[d.name] > 0:
+                    debt_balances[d.name] -= min(debt_balances[d.name], d.minimum_monthly_payment)
 
         months.append(
             MonthSnapshot(
