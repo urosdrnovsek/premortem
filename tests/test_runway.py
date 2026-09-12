@@ -9,7 +9,7 @@ import shocks
 
 def make_household(**overrides) -> model.Household:
     defaults = dict(
-        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        people=(model.Person(name="You", notice_period_months=0),),
         flows=(
             model.Flow(name="Salary", kind=model.FlowKind.INCOME, monthly_amount=Decimal("2000"), owner="You"),
             model.Flow(name="Rent", kind=model.FlowKind.FIXED_EXPENSE, monthly_amount=Decimal("1000")),
@@ -37,7 +37,7 @@ def test_no_shock_stays_solvent_when_income_covers_fixed_costs():
 
 def test_job_loss_with_no_savings_goes_insolvent_immediately_after_notice():
     h = make_household(
-        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        people=(model.Person(name="You", notice_period_months=0),),
         assets=(model.Asset(name="Cash", value=Decimal("0"), access_days=0),),
     )
     shock = shocks.job_loss(h.person("You"))
@@ -48,7 +48,7 @@ def test_job_loss_with_no_savings_goes_insolvent_immediately_after_notice():
 
 def test_waterfall_drains_cheapest_access_asset_first():
     h = make_household(
-        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        people=(model.Person(name="You", notice_period_months=0),),
         assets=(
             model.Asset(name="Slow ISA", value=Decimal("10000"), access_days=5, haircut_pct=Decimal("0.1")),
             model.Asset(name="Cash", value=Decimal("2000"), access_days=0, haircut_pct=Decimal("0")),
@@ -64,7 +64,7 @@ def test_waterfall_drains_cheapest_access_asset_first():
 
 def test_haircut_reduces_net_proceeds_from_forced_liquidation():
     h = make_household(
-        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        people=(model.Person(name="You", notice_period_months=0),),
         assets=(model.Asset(name="ISA", value=Decimal("2000"), access_days=0, haircut_pct=Decimal("0.5")),),
     )
     shock = shocks.job_loss(h.person("You"))
@@ -78,7 +78,7 @@ def test_haircut_reduces_net_proceeds_from_forced_liquidation():
 
 def test_illiquid_asset_with_huge_access_days_never_reached_within_horizon():
     h = make_household(
-        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        people=(model.Person(name="You", notice_period_months=0),),
         assets=(model.Asset(name="Pension", value=Decimal("100000"), access_days=36500),),
         horizon_months=6,
     )
@@ -116,8 +116,8 @@ def test_debt_payments_stop_once_balance_is_paid_off():
 def test_benefits_floor_arrives_after_delay_and_restores_solvency():
     h = make_household(
         people=(model.Person(
-            name="You", notice_period_months=Decimal("0"),
-            benefits_floor_monthly=Decimal("1000"), benefits_delay_months=Decimal("2"),
+            name="You", notice_period_months=0,
+            benefits_floor_monthly=Decimal("1000"), benefits_delay_months=2,
         ),),
         assets=(model.Asset(name="Cash", value=Decimal("2500"), access_days=0),),
         horizon_months=6,
@@ -136,7 +136,7 @@ def test_variable_spend_is_cut_before_insolvency_is_triggered():
     # Enough to cover fixed obligations but not variable spend -> not insolvent,
     # variable_spend_paid should be reduced rather than triggering insolvency.
     h = make_household(
-        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        people=(model.Person(name="You", notice_period_months=0),),
         assets=(model.Asset(name="Cash", value=Decimal("1000"), access_days=0),),
         horizon_months=1,
     )
@@ -150,7 +150,7 @@ def test_variable_spend_is_cut_before_insolvency_is_triggered():
 
 def test_variable_spend_does_not_draw_assets_when_shock_is_active():
     h = make_household(
-        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        people=(model.Person(name="You", notice_period_months=0),),
         assets=(model.Asset(name="Cash", value=Decimal("5000"), access_days=0),),
         horizon_months=1,
     )
@@ -164,12 +164,35 @@ def test_variable_spend_does_not_draw_assets_when_shock_is_active():
     assert sum(d.net_amount for d in month0.draws) == Decimal("1000")
 
 
+def test_variable_spend_is_not_cut_during_notice_period_before_shock_fires():
+    # 3 months' notice: You are still fully paid through month 2, so a shock
+    # existing somewhere on the timeline must not cut discretionary spend before
+    # it actually reduces income - that would make runway look longer than reality.
+    h = make_household(
+        people=(model.Person(name="You", notice_period_months=3),),
+        assets=(model.Asset(name="Cash", value=Decimal("5000"), access_days=0),),
+        horizon_months=4,
+    )
+    shock = shocks.job_loss(h.person("You"))
+    proj = runway.project(h, shock)
+    # months 0-2: still employed, full income covers fixed costs with room to
+    # spare -> variable spend is funded in full, no need to touch savings.
+    for m in range(3):
+        assert proj.months[m].variable_spend_paid == proj.months[m].variable_spend_planned
+        assert proj.months[m].draws == ()
+    # month 3: notice has run out, income stops -> shock is now active, and
+    # discretionary spend is cut rather than funded from the untouched 5000 cash.
+    month3 = proj.months[3]
+    assert month3.solvent
+    assert month3.variable_spend_paid == Decimal("0")
+
+
 def test_redundancy_lump_sum_with_no_assets_does_not_crash():
     # Zero-asset household: the redundancy payout has nowhere real to land, but
     # project() must still complete instead of KeyError-ing in the waterfall.
     h = make_household(
         people=(model.Person(
-            name="You", notice_period_months=Decimal("0"),
+            name="You", notice_period_months=0,
             redundancy_lump_sum=Decimal("3000"), redundancy_target_asset=None,
         ),),
         assets=(),
@@ -187,7 +210,7 @@ def test_redundancy_target_asset_unknown_name_rejected_at_construction():
     with pytest.raises(ValueError):
         make_household(
             people=(model.Person(
-                name="You", notice_period_months=Decimal("0"),
+                name="You", notice_period_months=0,
                 redundancy_lump_sum=Decimal("3000"), redundancy_target_asset="Nonexistent account",
             ),),
             assets=(),
@@ -196,7 +219,7 @@ def test_redundancy_target_asset_unknown_name_rejected_at_construction():
 
 def test_major_expense_competes_with_fixed_obligations_same_month():
     h = make_household(
-        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        people=(model.Person(name="You", notice_period_months=0),),
         assets=(model.Asset(name="Cash", value=Decimal("1200"), access_days=0),),
         major_expense_amount=Decimal("1000"),
     )

@@ -10,6 +10,8 @@ The world is unpredictable. Layoffs happen. Boilers die at 2am in January. A cli
 
 It's not a budgeting app, and it doesn't care about your net worth. It asks one blunt question — *if the bad thing happens, when do you run out of money to cover rent?* — and answers it by actually simulating your assets draining in the order you could truly reach them, because "I have savings" and "I can spend that money this month" are not the same sentence.
 
+Debts are modelled as a minimum monthly payment against a balance, amortized with no interest. A real loan's balance falls slower than that, so this simulation can have the payment drop out — and runway look better — sooner than it would in reality.
+
 ## Sample output
 
 ![Sample report page, generated from fictional data](docs/sample-report.png)
