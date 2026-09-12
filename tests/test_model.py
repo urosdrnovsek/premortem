@@ -145,3 +145,36 @@ def test_household_rejects_income_flow_without_an_owner():
         pass
     else:
         raise AssertionError("expected ValueError for income flow with no owner")
+
+
+def test_household_rejects_duplicate_asset_names():
+    # runway keys balances by asset name; two "Cash" entries would collapse into one.
+    try:
+        model.Household(
+            people=(model.Person(name="You"),),
+            flows=(),
+            assets=(
+                model.Asset(name="Cash", value=Decimal("100"), access_days=0),
+                model.Asset(name="Cash", value=Decimal("200"), access_days=0),
+            ),
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for duplicate asset name")
+
+
+def test_household_rejects_no_people_and_reduction_factor_above_one():
+    try:
+        model.Household(people=(), flows=(), assets=())
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for a household with no people")
+
+    try:
+        model.Household(people=(model.Person(name="You"),), flows=(), assets=(), income_reduction_factor=Decimal("1.5"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for income_reduction_factor > 1")

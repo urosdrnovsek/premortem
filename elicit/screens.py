@@ -41,10 +41,11 @@ class PeopleCountScreen(Screen[int]):
 
 
 class PersonScreen(Screen[dict]):
-    def __init__(self, index: int, default_name: str) -> None:
+    def __init__(self, index: int, default_name: str, taken_names: list[str] = ()) -> None:
         super().__init__()
         self.index = index
         self.default_name = default_name
+        self.taken_names = list(taken_names)
 
     def compose(self) -> ComposeResult:
         yield Static(f"[b]Person {self.index}[/b]")
@@ -87,6 +88,9 @@ class PersonScreen(Screen[dict]):
                     f"[red]'{field_name.replace('_', ' ')}' must be 0 or more, got {result[field_name]}.[/red]"
                 )
                 return
+        if result["name"] in self.taken_names:
+            self.query_one("#error", Static).update(f"[red]'{result['name']}' is already taken - names must be unique.[/red]")
+            return
         self.dismiss(result)
 
 
@@ -173,9 +177,13 @@ class RepeatingFormScreen(Screen[list]):
                     return None
                 result[key] = value
 
-        # A blank name means "I'm done", so only enforce required references on a
-        # form that's actually describing an item.
-        if result.get(self.SENTINEL_FIELD):
+        # A blank name means "I'm done", so only enforce required references and
+        # uniqueness on a form that's actually describing an item.
+        name = result.get(self.SENTINEL_FIELD)
+        if name:
+            if any(item[self.SENTINEL_FIELD] == name for item in self.items):
+                self.query_one("#error", Static).update(f"[red]'{name}' is already added - names must be unique.[/red]")
+                return None
             for key, label, kind, default in self.fields:
                 if key in self.reference_names and not result[key]:
                     self.query_one("#error", Static).update(
@@ -262,9 +270,9 @@ class AssumptionsScreen(Screen[dict]):
                 f"[red]'A major unplanned expense' must be 0 or more, got {result['major_expense_amount']}.[/red]"
             )
             return
-        if result["income_reduction_factor"] < 0:
+        if not (0 <= result["income_reduction_factor"] <= 1):
             self.query_one("#error", Static).update(
-                f"[red]'If income dropped but didn't stop' must be 0 or more, got {result['income_reduction_factor']}.[/red]"
+                f"[red]'If income dropped but didn't stop' must be between 0 and 1, got {result['income_reduction_factor']}.[/red]"
             )
             return
         self.dismiss(result)

@@ -264,6 +264,44 @@ async def _check_asset_form_rejects_haircut_pct_above_one() -> None:
         assert pilot.app.screen.items == []
 
 
+async def _check_asset_form_rejects_duplicate_name() -> None:
+    """Regression coverage: two assets with the same name must be caught in the
+    form, not crash the @work worker when Household() rejects the duplicate -
+    runway keys balances by name, so the second would silently replace the first."""
+    app = PremortemApp()
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.pause()
+        await pilot.click("#begin")               # Welcome
+        await pilot.pause()
+        await pilot.click("#one")                  # PeopleCount: single adult
+        await pilot.pause()
+        await pilot.click("#continue")               # PersonScreen: defaults
+        await pilot.pause()
+        await pilot.click("#continue")               # Income: none
+        await pilot.pause()
+        await pilot.click("#continue")               # Fixed costs: none
+        await pilot.pause()
+        await pilot.click("#continue")               # Variable costs: none
+        await pilot.pause()
+
+        await _fill(pilot, {"field-name": "Cash", "field-value": "100"})
+        await pilot.click("#add")                    # Assets: first "Cash" is fine
+        await pilot.pause()
+        assert len(pilot.app.screen.items) == 1
+
+        await _fill(pilot, {"field-name": "Cash", "field-value": "200"})
+        await pilot.click("#continue")               # second "Cash" - must not advance
+        await pilot.pause()
+
+        error_text = str(pilot.app.screen.query_one("#error").render())
+        assert "already added" in error_text
+        assert len(pilot.app.screen.items) == 1
+
+
+def test_wizard_rejects_duplicate_asset_name():
+    asyncio.run(_check_asset_form_rejects_duplicate_name())
+
+
 def test_wizard_rejects_negative_redundancy_lump_sum():
     asyncio.run(_check_person_screen_rejects_negative_redundancy_lump_sum())
 

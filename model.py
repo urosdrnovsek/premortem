@@ -94,8 +94,19 @@ class Household:
             raise ValueError(f"horizon_months must be >= 1, got {self.horizon_months}")
         if self.major_expense_amount < 0:
             raise ValueError(f"major_expense_amount must be >= 0, got {self.major_expense_amount}")
-        if self.income_reduction_factor < 0:
-            raise ValueError(f"income_reduction_factor must be >= 0, got {self.income_reduction_factor}")
+        if not (0 <= self.income_reduction_factor <= 1):
+            raise ValueError(f"income_reduction_factor must be between 0 and 1, got {self.income_reduction_factor}")
+        if not self.people:
+            raise ValueError("household must have at least one person")
+
+        # runway keys assets and debts by name, so a duplicate would silently
+        # collapse two balances into one.
+        for label, items in (("person", self.people), ("asset", self.assets), ("debt", self.debts)):
+            seen: set[str] = set()
+            for item in items:
+                if item.name in seen:
+                    raise ValueError(f"duplicate {label} name {item.name!r}")
+                seen.add(item.name)
 
         person_names = {p.name for p in self.people}
         for f in self.flows:

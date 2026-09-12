@@ -50,12 +50,6 @@ def _reachable_month(access_days: int) -> int:
     return math.ceil(access_days / 30)
 
 
-def _fastest_asset_name(household: Household) -> str | None:
-    if not household.assets:
-        return None
-    return min(household.assets, key=lambda a: (a.access_days, a.haircut_pct)).name
-
-
 def _draw_waterfall(
     need: Decimal,
     balances: dict[str, Decimal],
@@ -138,12 +132,12 @@ def project(household: Household, shock: Shock) -> Projection:
                 benefits_floor_active[d.ref] = d.value
             elif d.target == DeltaTarget.ASSET and d.op == DeltaOp.ADD:
                 if d.value >= 0:
-                    target = d.ref or _fastest_asset_name(household) or "Unassigned lump sum"
+                    # A payout with no named destination is cash in hand: land it in an
+                    # implicit same-day account rather than in whichever real asset is
+                    # "fastest", which would wrongly inherit that asset's haircut and
+                    # access delay (unreachable for the horizon if all you own is a pension).
+                    target = d.ref or "Unassigned lump sum"
                     if target not in balances:
-                        # No real asset by this name (e.g. a redundancy payout with no
-                        # target asset, or none configured at all) - land it somewhere
-                        # spendable immediately rather than losing track of it or
-                        # crashing the waterfall below on a name it doesn't know.
                         balances[target] = Decimal("0")
                         haircuts[target] = Decimal("0")
                         access_days[target] = 0
@@ -197,7 +191,7 @@ def project(household: Household, shock: Shock) -> Projection:
                 variable_spend_paid = min(variable_spend_planned, leftover_income)
             else:
                 variable_need = max(Decimal("0"), variable_spend_planned - leftover_income)
-                var_covered, var_draws, var_remaining = _draw_waterfall(
+                var_covered, var_draws, _ = _draw_waterfall(
                     variable_need, balances, haircuts, access_days, month
                 )
                 variable_spend_paid = min(variable_spend_planned, leftover_income + var_covered)

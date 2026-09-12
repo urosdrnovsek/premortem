@@ -93,7 +93,9 @@ class PremortemApp(App[None]):
         default_names = ["You", "Partner"]
         people_answers = []
         for i in range(num_people):
-            answer = await self.push_screen_wait(PersonScreen(i + 1, default_names[i]))
+            answer = await self.push_screen_wait(
+                PersonScreen(i + 1, default_names[i], taken_names=[a["name"] for a in people_answers])
+            )
             people_answers.append(answer)
 
         person_names = [a["name"] for a in people_answers]

@@ -267,6 +267,25 @@ def test_redundancy_lump_sum_with_no_assets_does_not_crash():
     assert proj.months[0].solvent
 
 
+def test_redundancy_lump_sum_without_target_is_cash_not_the_fastest_asset():
+    # Only asset is a pension nobody can reach this decade. An untargeted payout
+    # used to land in the "fastest" asset - i.e. that pension - and vanish for
+    # the whole horizon. It's cash in hand and must cover month 0's rent.
+    h = make_household(
+        people=(model.Person(
+            name="You", notice_period_months=0,
+            redundancy_lump_sum=Decimal("3000"), redundancy_target_asset=None,
+        ),),
+        assets=(model.Asset(name="Pension", value=Decimal("100000"), access_days=36500),),
+        horizon_months=3,
+    )
+    proj = runway.project(h, shocks.job_loss(h.person("You")))
+    # 3000 covers exactly three months of 1000 rent, drawn only from the payout
+    assert proj.insolvent_month is None
+    for m in proj.months:
+        assert [(d.asset_name, d.net_amount) for d in m.draws] == [("Unassigned lump sum", Decimal("1000"))]
+
+
 def test_redundancy_target_asset_unknown_name_rejected_at_construction():
     # A redundancy_target_asset that doesn't match any real asset (e.g. a stale
     # or hand-typed name in the TOML) is now caught by Household.__post_init__
