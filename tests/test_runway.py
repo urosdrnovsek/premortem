@@ -132,6 +132,36 @@ def test_benefits_floor_arrives_after_delay_and_restores_solvency():
     assert month2.solvent
 
 
+def test_benefits_floor_does_not_stack_on_top_of_a_restored_salary():
+    # Job loss, benefits start a month later, new job at month 3. The floor is a
+    # floor: it lifts income to 800 while unemployed and is inert once the new
+    # salary exceeds it - not 2800 of salary-plus-benefits for the rest of the horizon.
+    h = make_household(
+        people=(model.Person(
+            name="You", notice_period_months=0,
+            benefits_floor_monthly=Decimal("800"), benefits_delay_months=1,
+        ),),
+        assets=(model.Asset(name="Cash", value=Decimal("3000"), access_days=0),),
+        horizon_months=5,
+    )
+    new_job = shocks.Shock(
+        key="new_job", label="new job", description="",
+        deltas=(shocks.Delta(month=3, target=shocks.DeltaTarget.PERSON_INCOME, op=shocks.DeltaOp.SET,
+                             value=Decimal("2000"), ref="You"),),
+    )
+    shock = shocks.compound(shocks.job_loss(h.person("You")), new_job, key="k", label="l", description="")
+    proj = runway.project(h, shock)
+    assert proj.insolvent_month is None
+    assert proj.months[0].income_total == Decimal("0")
+    assert proj.months[1].income_total == Decimal("800")
+    assert proj.months[2].income_total == Decimal("800")
+    assert proj.months[3].income_total == Decimal("2000")
+    assert proj.months[4].income_total == Decimal("2000")
+    # back at baseline -> shock no longer active, variable spend funded from income
+    assert proj.months[3].variable_spend_paid == Decimal("300")
+    assert proj.months[3].draws == ()
+
+
 def test_variable_spend_is_cut_before_insolvency_is_triggered():
     # Enough to cover fixed obligations but not variable spend -> not insolvent,
     # variable_spend_paid should be reduced rather than triggering insolvency.

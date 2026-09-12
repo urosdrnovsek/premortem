@@ -168,6 +168,16 @@ class RepeatingFormScreen(Screen[list]):
                     self.query_one("#error", Static).update(f"[red]{bounds_error}[/red]")
                     return None
                 result[key] = value
+
+        # A blank name means "I'm done", so only enforce required references on a
+        # form that's actually describing an item.
+        if result.get(self.fields[0][0]):
+            for key, label, kind, default in self.fields:
+                if key in self.reference_names and not result[key]:
+                    self.query_one("#error", Static).update(
+                        f"[red]'{label}' is required: {', '.join(self.reference_names[key])}.[/red]"
+                    )
+                    return None
         return result
 
     def _bounds_error(self, key: str, label: str, value: Decimal | int) -> str | None:

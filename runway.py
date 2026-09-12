@@ -156,8 +156,12 @@ def project(household: Household, shock: Shock) -> Projection:
             baseline = sum(
                 (f.monthly_amount for f in household.income_flows_for(person.name)), Decimal("0")
             )
-            income_total += income_override.get(person.name, baseline)
-            income_total += benefits_floor_active.get(person.name, Decimal("0"))
+            person_income = income_override.get(person.name, baseline)
+            # A floor, not a top-up: it lifts income to at least this much while the
+            # person earns less, and is inert once they earn more - so a new job
+            # doesn't get benefits stacked on top of it for the rest of the horizon.
+            floor = benefits_floor_active.get(person.name, Decimal("0"))
+            income_total += max(person_income, floor)
 
         variable_spend_planned = sum(
             (f.monthly_amount for f in variable_flows

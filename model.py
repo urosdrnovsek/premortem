@@ -99,6 +99,8 @@ class Household:
 
         person_names = {p.name for p in self.people}
         for f in self.flows:
+            if f.kind == FlowKind.INCOME and not f.owner:
+                raise ValueError(f"flow {f.name!r}: income must have an owner")
             if f.owner and f.owner not in person_names:
                 raise ValueError(f"flow {f.name!r}: owner {f.owner!r} does not match any person")
 

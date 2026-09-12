@@ -130,3 +130,18 @@ def test_household_rejects_redundancy_target_asset_not_matching_an_asset():
         pass
     else:
         raise AssertionError("expected ValueError for redundancy_target_asset not matching any asset")
+
+
+def test_household_rejects_income_flow_without_an_owner():
+    # income_flows_for() attributes income by owner, so an unowned income line
+    # would be accepted and then silently never counted in any projection.
+    try:
+        model.Household(
+            people=(model.Person(name="You"),),
+            flows=(model.Flow(name="Mystery income", kind=model.FlowKind.INCOME, monthly_amount=Decimal("500")),),
+            assets=(),
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for income flow with no owner")

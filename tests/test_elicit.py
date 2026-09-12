@@ -144,9 +144,10 @@ async def _run_wizard_with_no_assets(out_path: Path) -> model.Household:
 
 
 async def _run_wizard_with_bad_then_good_owner(out_path: Path) -> model.Household:
-    """Regression coverage: an income 'owner' that doesn't match a person's name
-    must be caught right there with the friendly red-text error, not crash the
-    @work worker later when Household() cross-validates it."""
+    """Regression coverage: an income 'owner' that is blank, or doesn't match a
+    person's name, must be caught right there with the friendly red-text error,
+    not crash the @work worker later when Household() cross-validates it. A
+    blank owner used to pass and produce an income line no projection counted."""
     app = PremortemApp()
     async with app.run_test(size=(100, 60)) as pilot:
         await pilot.pause()
@@ -160,16 +161,25 @@ async def _run_wizard_with_bad_then_good_owner(out_path: Path) -> model.Househol
         await pilot.click("#continue")
         await pilot.pause()
 
-        await _fill(pilot, {"field-name": "Salary", "field-owner": "Nobody", "field-monthly_amount": "2500"})
+        await _fill(pilot, {"field-name": "Salary", "field-owner": "", "field-monthly_amount": "2500"})
+        await pilot.click("#continue")               # Income: blank owner - must not advance
+        await pilot.pause()
+
+        error_text = str(pilot.app.screen.query_one("#error").render())
+        assert "is required" in error_text
+
+        # Button.press() ignores clicks on the same button while its "-active"
+        # animation is running (active_effect_duration = 0.2s) - wait it out
+        # before clicking Continue again on this same button instance.
+        await pilot.pause(0.3)
+
+        await _fill(pilot, {"field-owner": "Nobody"})
         await pilot.click("#continue")               # Income: mismatched owner - must not advance
         await pilot.pause()
 
         error_text = str(pilot.app.screen.query_one("#error").render())
         assert "must match an existing name" in error_text
 
-        # Button.press() ignores clicks on the same button while its "-active"
-        # animation is running (active_effect_duration = 0.2s) - wait it out
-        # before clicking Continue again on this same button instance.
         await pilot.pause(0.3)
 
         await _fill(pilot, {"field-owner": "Solo"})   # correct it and continue for real
