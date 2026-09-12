@@ -99,6 +99,10 @@ FIELD_BOOL = "bool"
 class RepeatingFormScreen(Screen[list]):
     """Collects zero or more items sharing the same small form (flows, assets, debts)."""
 
+    # Submitting the form with this field blank means "no more items", so it must
+    # be a string field - a numeric one would read a legitimate zero as "done".
+    SENTINEL_FIELD = "name"
+
     def __init__(
         self,
         title: str,
@@ -171,7 +175,7 @@ class RepeatingFormScreen(Screen[list]):
 
         # A blank name means "I'm done", so only enforce required references on a
         # form that's actually describing an item.
-        if result.get(self.fields[0][0]):
+        if result.get(self.SENTINEL_FIELD):
             for key, label, kind, default in self.fields:
                 if key in self.reference_names and not result[key]:
                     self.query_one("#error", Static).update(
@@ -197,11 +201,10 @@ class RepeatingFormScreen(Screen[list]):
         self.query_one("#error", Static).update("")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        name_key = self.fields[0][0]
         item = self._read_form()
         if item is None:
             return
-        has_name = bool(item.get(name_key))
+        has_name = bool(item.get(self.SENTINEL_FIELD))
 
         if event.button.id == "add":
             if has_name:
