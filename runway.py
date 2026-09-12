@@ -107,10 +107,12 @@ def project(household: Household, shock: Shock) -> Projection:
     income_override: dict[str, Decimal] = {}
     benefits_floor_active: dict[str, Decimal] = {}
     job_linked_variable_active = True
+    shock_active = bool(shock.deltas)
 
-    fixed_total = sum(
+    fixed_flows_total = sum(
         (f.monthly_amount for f in household.flows if f.kind == FlowKind.FIXED_EXPENSE), Decimal("0")
-    ) + sum((d.minimum_monthly_payment for d in household.debts), Decimal("0"))
+    )
+    debt_balances: dict[str, Decimal] = {d.name: d.balance for d in household.debts}
 
     variable_flows = [f for f in household.flows if f.kind == FlowKind.VARIABLE_EXPENSE]
 
@@ -159,9 +161,16 @@ def project(household: Household, shock: Shock) -> Projection:
             Decimal("0"),
         )
 
+        debt_due = sum(
+            (min(debt_balances[d.name], d.minimum_monthly_payment)
+             for d in household.debts if debt_balances[d.name] > 0),
+            Decimal("0"),
+        )
+        fixed_total = fixed_flows_total + debt_due
+
         required = fixed_total + one_off_need
         shortfall_required = max(Decimal("0"), required - income_total)
-        covered, draws, remaining = _draw_waterfall(
+        _, draws, remaining = _draw_waterfall(
             shortfall_required, balances, haircuts, access_days, month
         )
         solvent = remaining <= 0
@@ -169,12 +178,21 @@ def project(household: Household, shock: Shock) -> Projection:
         variable_spend_paid = Decimal("0")
         if solvent:
             leftover_income = max(Decimal("0"), income_total - required)
-            variable_need = max(Decimal("0"), variable_spend_planned - leftover_income)
-            var_covered, var_draws, var_remaining = _draw_waterfall(
-                variable_need, balances, haircuts, access_days, month
-            )
-            variable_spend_paid = min(variable_spend_planned, leftover_income + var_covered)
-            draws = draws + var_draws
+            if shock_active:
+                # A household actually under a shock cuts discretionary spending
+                # before it starts selling assets to fund takeaways and streaming.
+                variable_spend_paid = min(variable_spend_planned, leftover_income)
+            else:
+                variable_need = max(Decimal("0"), variable_spend_planned - leftover_income)
+                var_covered, var_draws, var_remaining = _draw_waterfall(
+                    variable_need, balances, haircuts, access_days, month
+                )
+                variable_spend_paid = min(variable_spend_planned, leftover_income + var_covered)
+                draws = draws + var_draws
+
+            for d in household.debts:
+                if debt_balances[d.name] > 0:
+                    debt_balances[d.name] -= min(debt_balances[d.name], d.minimum_monthly_payment)
 
         months.append(
             MonthSnapshot(

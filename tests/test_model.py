@@ -31,7 +31,7 @@ def test_toml_round_trip_is_stable():
 
 def test_round_trip_preserves_decimal_values_exactly():
     h = model.Household(
-        people=(model.Person(name="You", notice_period_months=Decimal("1.5")),),
+        people=(model.Person(name="You", notice_period_months=1),),
         flows=(
             model.Flow(name="Salary", kind=model.FlowKind.INCOME, monthly_amount=Decimal("2837.42"), owner="You"),
         ),

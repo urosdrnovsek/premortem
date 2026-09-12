@@ -45,8 +45,8 @@ class Shock:
 
 
 def job_loss(person: Person) -> Shock:
-    notice_months = int(person.notice_period_months)
-    benefits_start = notice_months + int(person.benefits_delay_months)
+    notice_months = person.notice_period_months
+    benefits_start = notice_months + person.benefits_delay_months
 
     deltas: list[Delta] = []
 
@@ -79,7 +79,7 @@ def job_loss(person: Person) -> Shock:
         description=(
             f"{person.name}'s income continues for {notice_months} month(s) of notice, then a "
             f"redundancy payment arrives and income stops. Job-linked spending drops with it"
-            + (f"; a benefits floor begins {int(person.benefits_delay_months)} month(s) later." if person.benefits_floor_monthly > 0 else ".")
+            + (f"; a benefits floor begins {person.benefits_delay_months} month(s) later." if person.benefits_floor_monthly > 0 else ".")
         ),
         deltas=tuple(sorted(deltas, key=lambda d: d.month)),
     )

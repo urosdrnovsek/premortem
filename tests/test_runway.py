@@ -98,6 +98,21 @@ def test_insolvency_is_about_fixed_obligations_not_net_worth():
     assert proj.insolvent_month is None
 
 
+def test_debt_payments_stop_once_balance_is_paid_off():
+    h = make_household(
+        debts=(model.Debt(name="Loan", balance=Decimal("400"), minimum_monthly_payment=Decimal("100")),),
+        horizon_months=6,
+    )
+    proj = runway.project(h, no_op_shock())
+    assert proj.insolvent_month is None
+    # months 0-3: loan still being paid down (100/month on top of 1000 rent)
+    for m in range(4):
+        assert proj.months[m].fixed_obligations == Decimal("1100")
+    # month 4 onward: the 400 balance is fully amortized, so the payment drops out
+    assert proj.months[4].fixed_obligations == Decimal("1000")
+    assert proj.months[5].fixed_obligations == Decimal("1000")
+
+
 def test_benefits_floor_arrives_after_delay_and_restores_solvency():
     h = make_household(
         people=(model.Person(
@@ -131,6 +146,22 @@ def test_variable_spend_is_cut_before_insolvency_is_triggered():
     assert month0.solvent
     assert month0.variable_spend_paid < month0.variable_spend_planned
     assert month0.variable_spend_paid == Decimal("0")
+
+
+def test_variable_spend_does_not_draw_assets_when_shock_is_active():
+    h = make_household(
+        people=(model.Person(name="You", notice_period_months=Decimal("0")),),
+        assets=(model.Asset(name="Cash", value=Decimal("5000"), access_days=0),),
+        horizon_months=1,
+    )
+    shock = shocks.job_loss(h.person("You"))
+    proj = runway.project(h, shock)
+    month0 = proj.months[0]
+    assert month0.solvent
+    # plenty of cash is left after covering fixed obligations, but with a shock
+    # active discretionary spend is cut rather than funded by selling more assets.
+    assert month0.variable_spend_paid == Decimal("0")
+    assert sum(d.net_amount for d in month0.draws) == Decimal("1000")
 
 
 def test_redundancy_lump_sum_with_no_assets_does_not_crash():
@@ -171,7 +202,7 @@ def test_major_expense_competes_with_fixed_obligations_same_month():
     )
     shock = shocks.major_expense(h)
     proj = runway.project(h, shock)
-    # income 2000 exactly covers fixed 1000 + the 1000 boiler bill; variable
-    # spend then draws from the 1200 cash pool instead - solvent either way.
+    # income 2000 exactly covers fixed 1000 + the 1000 boiler bill; with a shock
+    # active, variable spend is cut rather than funded from the 1200 cash pool.
     assert proj.months[0].solvent
     assert proj.months[0].one_off_need == Decimal("1000")

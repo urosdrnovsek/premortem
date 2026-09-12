@@ -35,11 +35,11 @@ class Flow:
 @dataclass(frozen=True)
 class Person:
     name: str
-    notice_period_months: Decimal = Decimal("0")
+    notice_period_months: int = 0
     redundancy_lump_sum: Decimal = Decimal("0")
     redundancy_target_asset: str | None = None
     benefits_floor_monthly: Decimal = Decimal("0")
-    benefits_delay_months: Decimal = Decimal("0")
+    benefits_delay_months: int = 0
 
     def __post_init__(self) -> None:
         for field_name in ("notice_period_months", "redundancy_lump_sum", "benefits_floor_monthly", "benefits_delay_months"):
@@ -151,11 +151,11 @@ def to_toml(household: Household) -> str:
         "people": [
             {
                 "name": p.name,
-                "notice_period_months": _num(p.notice_period_months),
+                "notice_period_months": p.notice_period_months,
                 "redundancy_lump_sum": _num(p.redundancy_lump_sum),
                 "redundancy_target_asset": p.redundancy_target_asset or "",
                 "benefits_floor_monthly": _num(p.benefits_floor_monthly),
-                "benefits_delay_months": _num(p.benefits_delay_months),
+                "benefits_delay_months": p.benefits_delay_months,
             }
             for p in household.people
         ],
@@ -198,11 +198,11 @@ def from_toml(text: str) -> Household:
     people = tuple(
         Person(
             name=p["name"],
-            notice_period_months=_dec(p.get("notice_period_months", 0)),
+            notice_period_months=int(p.get("notice_period_months", 0)),
             redundancy_lump_sum=_dec(p.get("redundancy_lump_sum", 0)),
             redundancy_target_asset=p.get("redundancy_target_asset") or None,
             benefits_floor_monthly=_dec(p.get("benefits_floor_monthly", 0)),
-            benefits_delay_months=_dec(p.get("benefits_delay_months", 0)),
+            benefits_delay_months=int(p.get("benefits_delay_months", 0)),
         )
         for p in doc.get("people", [])
     )

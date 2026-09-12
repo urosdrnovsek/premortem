@@ -6,7 +6,7 @@
 
 The world is unpredictable. Layoffs happen. Boilers die at 2am in January. A client disappears. Most of us cope with this by not thinking about it too hard — which works fine, right up until it doesn't.
 
-`premortem` is a small personal project that does the thinking for you, in advance, so you're not doing it for the first time at 3am mid-panic. Answer a few honest questions about your income, expenses, assets, and debts, and it tells you — in months, precisely — how long you'd actually last against five specific bad days: losing your job, a major unplanned expense, your income quietly shrinking, or several of these ganging up on you at once (the "cold winter" scenario).
+`premortem` is a small personal project that does the thinking for you, in advance, so you're not doing it for the first time at 3am mid-panic. Answer a few honest questions about your income, expenses, assets, and debts, and it tells you — in months, precisely — how long you'd actually last against five specific bad days: losing your job, a major unplanned expense, your income quietly shrinking, someone else in the household losing their job, or several of these ganging up on you at once (the "cold winter" scenario).
 
 It's not a budgeting app, and it doesn't care about your net worth. It asks one blunt question — *if the bad thing happens, when do you run out of money to cover rent?* — and answers it by actually simulating your assets draining in the order you could truly reach them, because "I have savings" and "I can spend that money this month" are not the same sentence.
 

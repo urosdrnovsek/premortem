@@ -73,12 +73,12 @@ class PersonScreen(Screen[dict]):
         try:
             result = {
                 "name": self.query_one("#name", Input).value.strip() or self.default_name,
-                "notice_period_months": Decimal(self.query_one("#notice_period_months", Input).value),
+                "notice_period_months": int(self.query_one("#notice_period_months", Input).value),
                 "redundancy_lump_sum": Decimal(self.query_one("#redundancy_lump_sum", Input).value),
                 "benefits_floor_monthly": Decimal(self.query_one("#benefits_floor_monthly", Input).value),
-                "benefits_delay_months": Decimal(self.query_one("#benefits_delay_months", Input).value),
+                "benefits_delay_months": int(self.query_one("#benefits_delay_months", Input).value),
             }
-        except InvalidOperation:
+        except (InvalidOperation, ValueError):
             self.query_one("#error", Static).update("[red]Please enter plain numbers (e.g. 1200 or 0).[/red]")
             return
         for field_name in self.NON_NEGATIVE_FIELDS:
