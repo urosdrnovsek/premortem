@@ -1,0 +1,97 @@
+[meta]
+currency_label = "£"
+horizon_months = 24
+
+[assumptions]
+major_expense_amount = 3000
+major_expense_label = "Boiler / major home repair"
+income_reduction_factor = 0.5
+
+[[people]]
+name = "Alex"
+notice_period_months = 1
+redundancy_lump_sum = 4000
+redundancy_target_asset = "Current account"
+benefits_floor_monthly = 800
+benefits_delay_months = 2
+
+[[people]]
+name = "Sam"
+notice_period_months = 2
+redundancy_lump_sum = 6000
+redundancy_target_asset = "Current account"
+benefits_floor_monthly = 800
+benefits_delay_months = 2
+
+[[flows]]
+kind = "income"
+name = "Alex: salary"
+owner = "Alex"
+monthly_amount = 2800
+job_linked = false
+
+[[flows]]
+kind = "income"
+name = "Sam: salary"
+owner = "Sam"
+monthly_amount = 2200
+job_linked = false
+
+[[flows]]
+kind = "fixed_expense"
+name = "Rent"
+monthly_amount = 1400
+job_linked = false
+
+[[flows]]
+kind = "fixed_expense"
+name = "Insurance"
+monthly_amount = 120
+job_linked = false
+
+[[flows]]
+kind = "variable_expense"
+name = "Groceries"
+monthly_amount = 500
+job_linked = false
+
+[[flows]]
+kind = "variable_expense"
+name = "Commuting"
+monthly_amount = 180
+job_linked = true
+
+[[flows]]
+kind = "variable_expense"
+name = "Childcare"
+monthly_amount = 400
+job_linked = true
+
+[[assets]]
+name = "Current account"
+value = 2000
+access_days = 0
+haircut_pct = 0
+
+[[assets]]
+name = "Easy-access savings"
+value = 5000
+access_days = 1
+haircut_pct = 0
+
+[[assets]]
+name = "Stocks ISA"
+value = 8000
+access_days = 5
+haircut_pct = 0.05
+
+[[assets]]
+name = "Pension"
+value = 40000
+access_days = 36500
+haircut_pct = 0
+
+[[debts]]
+name = "Car loan"
+balance = 6000
+minimum_monthly_payment = 220

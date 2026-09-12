@@ -1,0 +1,21 @@
+# Forward proxy that allow-lists specific destinations by hostname.
+# This is the ONLY container in the whole setup with real internet access —
+# the agent container has none, and can only reach the internet by routing
+# through this proxy, which refuses anything not explicitly allow-listed
+# in squid.conf.
+
+FROM registry.fedoraproject.org/fedora:44
+
+RUN dnf install -y squid && dnf clean all
+
+COPY squid.conf /etc/squid/squid.conf
+
+EXPOSE 3128
+
+# Squid's own package already sets up a dedicated non-root 'squid' user —
+# use it, same non-root-everywhere principle as the rest of this project.
+USER squid
+
+# -N: stay in the foreground (required — a container's main process can't
+# daemonize/fork away, or the container just exits immediately after start)
+CMD ["squid", "-N", "-f", "/etc/squid/squid.conf"]

@@ -1,0 +1,89 @@
+@page {
+    size: A4;
+    margin: 14mm 16mm;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 9.5pt;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+h1 {
+    font-size: 16pt;
+    margin: 0 0 2mm 0;
+}
+
+.subtitle {
+    color: #555;
+    margin: 0 0 4mm 0;
+    font-size: 9pt;
+}
+
+.definition {
+    background: #f2f2f2;
+    border-left: 3px solid #333;
+    padding: 2mm 3mm;
+    margin-bottom: 4mm;
+    font-size: 8.5pt;
+}
+
+.household-summary {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4mm;
+    font-size: 8.5pt;
+}
+
+.household-summary div { width: 32%; }
+.household-summary dt { color: #555; }
+.household-summary dd { margin: 0 0 1mm 0; font-weight: bold; }
+
+table.shocks {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 4mm;
+}
+
+table.shocks th {
+    text-align: left;
+    border-bottom: 1pt solid #333;
+    padding: 1.5mm 2mm;
+    font-size: 8pt;
+    text-transform: uppercase;
+    color: #444;
+}
+
+table.shocks td {
+    border-bottom: 0.5pt solid #ddd;
+    padding: 1.5mm 2mm;
+    vertical-align: top;
+}
+
+td.months {
+    font-weight: bold;
+    font-size: 11pt;
+    white-space: nowrap;
+}
+
+td.months.safe { color: #1a7a3a; }
+td.months.warn { color: #b8860b; }
+td.months.danger { color: #b3261e; }
+
+.narrative {
+    background: #fff8e6;
+    border-left: 3px solid #b8860b;
+    padding: 2mm 3mm;
+    font-size: 8.5pt;
+}
+
+.narrative b { display: block; margin-bottom: 1mm; }
+
+.footer-note {
+    margin-top: 4mm;
+    font-size: 7.5pt;
+    color: #888;
+}

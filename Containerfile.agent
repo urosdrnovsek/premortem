@@ -1,0 +1,32 @@
+# Sandboxed environment for running the Claude Code agent itself — not just
+# the calculator's code (that's still Containerfile / run-dev.sh, untouched
+# and still fully offline).
+#
+# This container has NO direct route to the internet at build-run time.
+# Its only path out is through the separate proxy container (see proxy/),
+# which allow-lists a small, specific set of hostnames. See run-agent.sh
+# for how the two are wired together on a private network.
+
+FROM registry.fedoraproject.org/fedora:44
+
+# Python/pip (to run and test the calculator's own code, same as the other
+# container) + Node.js/npm (to install the claude CLI) + git (for local
+# version control — no network or credentials needed for that on its own).
+RUN dnf install -y python3 python3-pip nodejs npm git && dnf clean all
+
+RUN useradd --create-home appuser
+USER appuser
+WORKDIR /home/appuser/app
+
+# Global npm installs default to a system path appuser (non-root, by
+# design) can't write to — point npm at a directory inside its own home.
+ENV NPM_CONFIG_PREFIX=/home/appuser/.npm-global
+ENV PATH=/home/appuser/.npm-global/bin:$PATH
+
+# This reaches npm's registry — needs real network access, which only
+# exists at BUILD time (podman build has normal internet access; it's the
+# container's RUN-time network, set up in run-agent.sh, that's restricted).
+RUN npm install -g @anthropic-ai/claude-code
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt

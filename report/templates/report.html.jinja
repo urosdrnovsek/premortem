@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+    <h1>premortem</h1>
+    <p class="subtitle">
+        {{ people | join(" &amp; ") }} &middot; generated {{ generated_on }} &middot;
+        projected {{ horizon_months }} months forward
+    </p>
+
+    <div class="definition">
+        <b>Insolvent means:</b> the first month where income plus assets reachable within that
+        month, net of any haircut for cashing out early, cannot cover that month's fixed
+        obligations (rent/mortgage, insurance, minimum debt payments). Net worth is not checked &mdash;
+        a household with debt but positive monthly cash flow is not insolvent by this definition.
+    </div>
+
+    <div class="household-summary">
+        <div>
+            <dt>Monthly income</dt><dd>{{ total_income }}</dd>
+            <dt>Fixed obligations</dt><dd>{{ total_fixed }}</dd>
+        </div>
+        <div>
+            <dt>Variable spend</dt><dd>{{ total_variable }}</dd>
+            <dt>Total assets</dt><dd>{{ total_assets }}</dd>
+        </div>
+    </div>
+
+    <table class="shocks">
+        <thead>
+            <tr><th style="width: 34%;">If this happens&hellip;</th><th style="width: 18%;">Runway</th><th>What happens</th></tr>
+        </thead>
+        <tbody>
+            {% for shock in shocks %}
+            <tr>
+                <td><b>{{ shock.label }}</b></td>
+                <td class="months {{ shock.severity }}">{{ shock.months_label }}</td>
+                <td>{{ shock.description }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if narrative %}
+    <div class="narrative">
+        <b>Worth noticing</b>
+        {{ narrative }}
+    </div>
+    {% endif %}
+
+    <p class="footer-note">
+        premortem &mdash; file this and revisit annually, or whenever income, rent, or savings change materially.
+    </p>
+</body>
+</html>

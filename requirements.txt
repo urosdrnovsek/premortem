@@ -1,0 +1,5 @@
+textual
+jinja2
+weasyprint>=53
+tomli-w
+pytest
