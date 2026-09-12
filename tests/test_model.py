@@ -164,7 +164,9 @@ def test_household_rejects_duplicate_asset_names():
         raise AssertionError("expected ValueError for duplicate asset name")
 
 
-def test_household_rejects_no_people_and_reduction_factor_above_one():
+def test_household_rejects_no_people():
+    # primary_earner() is max() over people; an empty household would raise there,
+    # outside main.py's error handling, instead of here with a message.
     try:
         model.Household(people=(), flows=(), assets=())
     except ValueError:
@@ -172,6 +174,9 @@ def test_household_rejects_no_people_and_reduction_factor_above_one():
     else:
         raise AssertionError("expected ValueError for a household with no people")
 
+
+def test_household_rejects_income_reduction_factor_above_one():
+    # A factor above 1 would turn "income drops but doesn't stop" into a raise.
     try:
         model.Household(people=(model.Person(name="You"),), flows=(), assets=(), income_reduction_factor=Decimal("1.5"))
     except ValueError:

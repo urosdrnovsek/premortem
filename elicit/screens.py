@@ -3,6 +3,7 @@ No screen imports shocks.py or runway.py - elicit/'s only output is a TOML file.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
 
 from textual.app import ComposeResult
@@ -41,7 +42,7 @@ class PeopleCountScreen(Screen[int]):
 
 
 class PersonScreen(Screen[dict]):
-    def __init__(self, index: int, default_name: str, taken_names: list[str] = ()) -> None:
+    def __init__(self, index: int, default_name: str, taken_names: Sequence[str] = ()) -> None:
         super().__init__()
         self.index = index
         self.default_name = default_name
