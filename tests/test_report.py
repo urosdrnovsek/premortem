@@ -1,6 +1,8 @@
 from decimal import Decimal
 from pathlib import Path
 
+import markupsafe
+
 import model
 import shocks
 import runway
@@ -28,7 +30,8 @@ def test_render_html_is_well_formed_and_mentions_insolvency_definition():
     assert "<html>" in html and "</html>" in html
     assert "Insolvent means" in html
     for p in projections:
-        assert p.shock.label in html
+        # Labels contain apostrophes ("Alex's ..."), which autoescaping encodes.
+        assert markupsafe.escape(p.shock.label) in html
 
 
 def test_render_html_shows_a_waterfall_narrative_when_a_slow_asset_is_drawn():
@@ -57,6 +60,64 @@ def test_render_html_shows_a_waterfall_narrative_when_a_slow_asset_is_drawn():
     assert "Stocks ISA" in html
     assert "5 day" in html
     assert "10% haircut" in html
+
+
+def _hostile_household() -> model.Household:
+    # Every string in the report comes from a hand-editable TOML file, so a name
+    # is the natural place for markup to sneak in.
+    return model.Household(
+        people=(model.Person(name='<img src="file:///etc/passwd"> & Co'),),
+        flows=(),
+        assets=(model.Asset(name="<script>alert(1)</script>", value=Decimal("100"), access_days=0),),
+        currency_label="£",
+        horizon_months=3,
+    )
+
+
+def test_render_html_escapes_household_strings():
+    household = _hostile_household()
+    projections = [runway.project(household, s) for s in shocks.presets(household)]
+    html = render_html(household, projections)
+    assert "<img" not in html
+    assert "<script>" not in html
+    assert "&lt;img" in html
+    # The people separator is plain "&" in the template and must be escaped exactly once.
+    assert "&amp; Co" in html
+    assert "&amp;amp;" not in html
+
+
+def test_pdf_fetcher_only_reads_the_template_directory():
+    from report.render import _local_template_fetcher, TEMPLATE_DIR
+
+    fetcher = _local_template_fetcher()
+    for url in (
+        "file:///etc/passwd",
+        "http://127.0.0.1:1/style.css",
+        (TEMPLATE_DIR / ".." / "render.py").resolve().as_uri(),
+    ):
+        try:
+            fetcher(url)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected the fetcher to refuse {url}")
+
+    assert fetcher((TEMPLATE_DIR / "report.css").as_uri()) is not None
+
+
+def test_render_pdf_writes_a_pdf(tmp_path):
+    import pytest
+
+    try:
+        import weasyprint  # noqa: F401
+    except Exception as exc:  # OSError when Pango/Cairo are missing, not just ImportError
+        pytest.skip(f"weasyprint unavailable: {exc}")
+    from report.render import render_pdf
+
+    household, projections = _load_projections()
+    out = tmp_path / "report.pdf"
+    render_pdf(household, projections, out)
+    assert out.read_bytes().startswith(b"%PDF-")
 
 
 def test_months_label_does_not_claim_safety_beyond_the_horizon():

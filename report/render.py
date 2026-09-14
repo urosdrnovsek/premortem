@@ -12,9 +12,13 @@ from runway import Projection
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
+# autoescape=True, not select_autoescape(["html"]): that helper keys off the
+# template's filename suffix, and "report.html.jinja" ends in ".jinja", so it
+# silently left escaping OFF. Every string in the context comes from a
+# user-edited TOML file, and the HTML goes straight into WeasyPrint.
 _env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
-    autoescape=jinja2.select_autoescape(["html"]),
+    autoescape=True,
 )
 
 
@@ -110,8 +114,35 @@ def render_html(household: Household, projections: list[Projection]) -> str:
     return template.render(**build_context(household, projections))
 
 
+def _local_template_fetcher():
+    """A WeasyPrint fetcher that can only read files inside TEMPLATE_DIR (the stylesheet).
+
+    WeasyPrint's default fetcher follows http(s):// and any file:// URL it finds in
+    the document. Autoescaping keeps household data out of the markup, but this is
+    the belt to that pair of braces: even if something slipped through, the renderer
+    cannot read arbitrary local files or make network requests during PDF generation.
+    """
+    from urllib.parse import urlparse
+    from urllib.request import url2pathname
+
+    from weasyprint.urls import URLFetcher
+
+    template_root = TEMPLATE_DIR.resolve()
+
+    class TemplateDirOnlyFetcher(URLFetcher):
+        def fetch(self, url, headers=None):
+            target = Path(url2pathname(urlparse(url).path)).resolve()
+            if not target.is_relative_to(template_root):
+                raise ValueError(f"premortem report: refusing to read outside the template directory: {url!r}")
+            return super().fetch(url, headers)
+
+    return TemplateDirOnlyFetcher(allowed_protocols={"file"})
+
+
 def render_pdf(household: Household, projections: list[Projection], out_path: Path) -> None:
     import weasyprint  # imported lazily: only needed for the PDF path, not for HTML/testing
 
     html = render_html(household, projections)
-    weasyprint.HTML(string=html, base_url=str(TEMPLATE_DIR)).write_pdf(str(out_path))
+    weasyprint.HTML(
+        string=html, base_url=str(TEMPLATE_DIR), url_fetcher=_local_template_fetcher()
+    ).write_pdf(str(out_path))
