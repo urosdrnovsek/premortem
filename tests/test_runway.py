@@ -251,6 +251,31 @@ def test_shock_active_lifts_when_income_recovers_mid_horizon():
     assert sum(d.net_amount for d in month2.draws) == Decimal("100")
 
 
+def test_job_linked_variable_spend_returns_when_a_set_delta_switches_it_back_on():
+    # The SET delta carries a value for a reason: 0 turns job-linked spend off,
+    # a positive value turns it back on. A recovery shock (new job) must be able
+    # to bring commute/childcare costs back, not leave them switched off forever.
+    h = make_household(
+        flows=(
+            model.Flow(name="Salary", kind=model.FlowKind.INCOME, monthly_amount=Decimal("2000"), owner="You"),
+            model.Flow(name="Rent", kind=model.FlowKind.FIXED_EXPENSE, monthly_amount=Decimal("1000")),
+            model.Flow(name="Commute", kind=model.FlowKind.VARIABLE_EXPENSE, monthly_amount=Decimal("200"), job_linked=True),
+        ),
+        horizon_months=3,
+    )
+    shock = shocks.Shock(
+        key="test_job_linked_recovery", label="test", description="",
+        deltas=(
+            shocks.Delta(month=0, target=shocks.DeltaTarget.JOB_LINKED_VARIABLE, op=shocks.DeltaOp.SET,
+                         value=Decimal("0")),
+            shocks.Delta(month=2, target=shocks.DeltaTarget.JOB_LINKED_VARIABLE, op=shocks.DeltaOp.SET,
+                         value=Decimal("1")),
+        ),
+    )
+    proj = runway.project(h, shock)
+    assert [m.variable_spend_planned for m in proj.months] == [Decimal("0"), Decimal("0"), Decimal("200")]
+
+
 def test_redundancy_lump_sum_with_no_assets_does_not_crash():
     # Zero-asset household: the redundancy payout has nowhere real to land, but
     # project() must still complete instead of KeyError-ing in the waterfall.

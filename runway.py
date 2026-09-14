@@ -127,7 +127,9 @@ def project(household: Household, shock: Shock) -> Projection:
             if d.target == DeltaTarget.PERSON_INCOME and d.op == DeltaOp.SET:
                 income_override[d.ref] = d.value
             elif d.target == DeltaTarget.JOB_LINKED_VARIABLE and d.op == DeltaOp.SET:
-                job_linked_variable_active = False
+                # 0 switches job-linked spend off (job ends); anything positive
+                # switches it back on (new job) - so a recovery shock can restore it.
+                job_linked_variable_active = d.value > 0
             elif d.target == DeltaTarget.BENEFITS_FLOOR and d.op == DeltaOp.SET:
                 benefits_floor_active[d.ref] = d.value
             elif d.target == DeltaTarget.ASSET and d.op == DeltaOp.ADD:
