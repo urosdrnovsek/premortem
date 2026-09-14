@@ -15,9 +15,10 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      # weasyprint (PDF rendering) is imported lazily in report/render.py and
-      # isn't exercised by the test suite, so no system Pango/Cairo libraries
-      # are needed here - a plain pip install is enough to run pytest.
+      # weasyprint needs Pango/Cairo at import time; without them the PDF smoke
+      # test in tests/test_report.py skips instead of exercising the real output path.
+      - run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf2.0-0 libffi-dev  # same list as install.sh
+
       - run: pip install -r requirements.txt
 
       - run: pytest -q

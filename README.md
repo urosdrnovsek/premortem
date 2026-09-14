@@ -14,7 +14,7 @@ It's not a budgeting app, and it doesn't care about your net worth. It asks one 
 
 ![Sample report page, generated from fictional data](docs/sample-report.png)
 
-*(Jamie, Sam, and their finances are entirely made up for this screenshot — this repo never ships or commits real household data.)*
+*(Rendered from `tests/fixtures/sample_household.toml` — Alex, Sam, and their finances are entirely made up; this repo never ships or commits real household data.)*
 
 ## How it works
 

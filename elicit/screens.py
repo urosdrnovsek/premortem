@@ -11,6 +11,21 @@ from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Checkbox, Footer, Input, Label, Select, Static
 
+from model import MONEY_PLACES, RATIO_PLACES
+
+# Fields that are a fraction (0-1) rather than an amount of money.
+RATIO_FIELDS = frozenset({"haircut_pct", "income_reduction_factor"})
+
+
+def parse_amount(raw: str, field: str) -> Decimal:
+    """A typed number, rounded to what the saved file can hold (see model.to_toml),
+    so the value on screen is exactly the value that ends up in the TOML.
+    Raises InvalidOperation for anything that isn't a plain finite number."""
+    value = Decimal(raw.strip() or "0")
+    if not value.is_finite():
+        raise InvalidOperation(f"{field}: not a plain number: {raw!r}")
+    return value.quantize(RATIO_PLACES if field in RATIO_FIELDS else MONEY_PLACES)
+
 
 class WelcomeScreen(Screen[None]):
     def compose(self) -> ComposeResult:
@@ -76,8 +91,8 @@ class PersonScreen(Screen[dict]):
             result = {
                 "name": self.query_one("#name", Input).value.strip() or self.default_name,
                 "notice_period_months": int(self.query_one("#notice_period_months", Input).value),
-                "redundancy_lump_sum": Decimal(self.query_one("#redundancy_lump_sum", Input).value),
-                "benefits_floor_monthly": Decimal(self.query_one("#benefits_floor_monthly", Input).value),
+                "redundancy_lump_sum": parse_amount(self.query_one("#redundancy_lump_sum", Input).value, "redundancy_lump_sum"),
+                "benefits_floor_monthly": parse_amount(self.query_one("#benefits_floor_monthly", Input).value, "benefits_floor_monthly"),
                 "benefits_delay_months": int(self.query_one("#benefits_delay_months", Input).value),
             }
         except (InvalidOperation, ValueError):
@@ -157,7 +172,7 @@ class RepeatingFormScreen(Screen[list]):
                 result[key] = raw
             elif kind == FIELD_DECIMAL:
                 try:
-                    value = Decimal(raw) if raw else Decimal("0")
+                    value = parse_amount(raw, key)
                 except InvalidOperation:
                     self.query_one("#error", Static).update(f"[red]'{label}' needs a plain number.[/red]")
                     return None
@@ -254,9 +269,9 @@ class AssumptionsScreen(Screen[dict]):
             result = {
                 "currency_label": self.query_one("#currency_label", Input).value,
                 "horizon_months": int(self.query_one("#horizon_months", Input).value),
-                "major_expense_amount": Decimal(self.query_one("#major_expense_amount", Input).value),
+                "major_expense_amount": parse_amount(self.query_one("#major_expense_amount", Input).value, "major_expense_amount"),
                 "major_expense_label": self.query_one("#major_expense_label", Input).value,
-                "income_reduction_factor": Decimal(self.query_one("#income_reduction_factor", Input).value),
+                "income_reduction_factor": parse_amount(self.query_one("#income_reduction_factor", Input).value, "income_reduction_factor"),
             }
         except (InvalidOperation, ValueError):
             self.query_one("#error", Static).update("[red]Please enter plain numbers.[/red]")

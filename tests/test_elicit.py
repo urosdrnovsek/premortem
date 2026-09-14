@@ -298,6 +298,46 @@ async def _check_asset_form_rejects_duplicate_name() -> None:
         assert len(pilot.app.screen.items) == 1
 
 
+async def _check_asset_form_rounds_amounts_to_saved_precision() -> None:
+    """What you type is what gets saved: amounts are rounded at entry to the
+    precision model.to_toml() writes, so the review screen and the TOML agree."""
+    app = PremortemApp()
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.pause()
+        await pilot.click("#begin")
+        await pilot.pause()
+        await pilot.click("#one")
+        await pilot.pause()
+        await _fill(pilot, {"name": "Solo"})
+        await pilot.click("#continue")               # PersonScreen
+        await pilot.pause()
+        await _fill(pilot, {"field-name": "Salary", "field-owner": "Solo", "field-monthly_amount": "2500"})
+        await pilot.click("#continue")               # Income
+        await pilot.pause()
+        await pilot.click("#continue")               # Fixed: none
+        await pilot.pause()
+        await pilot.click("#continue")               # Variable: none
+        await pilot.pause()
+
+        await _fill(pilot, {
+            "field-name": "ISA",
+            "field-value": "8123.999",
+            "field-access_days": "5",
+            "field-haircut_pct": "0.333333333",
+        })
+        await pilot.click("#add")                    # Assets: add one and stay on the form
+        await pilot.pause()
+
+        assert pilot.app.screen.query_one("#error").render() == ""
+        (item,) = pilot.app.screen.items
+        assert item["value"] == Decimal("8124.00")
+        assert item["haircut_pct"] == Decimal("0.3333")
+
+
+def test_wizard_rounds_amounts_to_saved_precision():
+    asyncio.run(_check_asset_form_rounds_amounts_to_saved_precision())
+
+
 def test_wizard_rejects_duplicate_asset_name():
     asyncio.run(_check_asset_form_rejects_duplicate_name())
 
