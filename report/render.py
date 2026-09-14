@@ -32,7 +32,9 @@ def _severity(insolvent_month: int | None) -> str:
 
 def _months_label(insolvent_month: int | None, horizon_months: int) -> str:
     if insolvent_month is None:
-        return f"Safe beyond {horizon_months} mo"
+        # project() simulates exactly horizon_months months, so None only means
+        # "not insolvent within the horizon" - it says nothing about month N+1.
+        return f"{horizon_months}+ months"
     if insolvent_month == 1:
         return "1 month"
     return f"{insolvent_month} months"
@@ -70,9 +72,10 @@ def build_context(household: Household, projections: list[Projection]) -> dict:
     total_income = sum(
         (f.monthly_amount for f in household.flows if f.kind == FlowKind.INCOME), Decimal("0")
     )
+    # Same rule as runway.project(): a debt never costs more per month than is left on it.
     total_fixed = sum(
         (f.monthly_amount for f in household.flows if f.kind == FlowKind.FIXED_EXPENSE), Decimal("0")
-    ) + sum((d.minimum_monthly_payment for d in household.debts), Decimal("0"))
+    ) + sum((min(d.balance, d.minimum_monthly_payment) for d in household.debts), Decimal("0"))
     total_variable = sum(
         (f.monthly_amount for f in household.flows if f.kind == FlowKind.VARIABLE_EXPENSE), Decimal("0")
     )

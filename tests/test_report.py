@@ -57,3 +57,43 @@ def test_render_html_shows_a_waterfall_narrative_when_a_slow_asset_is_drawn():
     assert "Stocks ISA" in html
     assert "5 day" in html
     assert "10% haircut" in html
+
+
+def test_months_label_does_not_claim_safety_beyond_the_horizon():
+    # Exactly enough to survive every month of a 3-month horizon and not a penny
+    # more: month 3 would fail immediately, so "safe beyond" would be a lie.
+    household = model.Household(
+        people=(model.Person(name="You"),),
+        flows=(model.Flow(name="Rent", kind=model.FlowKind.FIXED_EXPENSE, monthly_amount=Decimal("1000")),),
+        assets=(model.Asset(name="Cash", value=Decimal("3000"), access_days=0),),
+        currency_label="£",
+        horizon_months=3,
+        major_expense_amount=Decimal("0"),
+    )
+    projection = runway.project(household, shocks.income_reduction(household.person("You"), household))
+    assert projection.insolvent_month is None
+    assert projection.months[-1].draws[-1].net_amount == Decimal("1000")
+
+    ctx = build_context(household, [projection])
+    label = ctx["shocks"][0]["months_label"]
+    assert label == "3+ months"
+    assert "beyond" not in label.lower()
+
+
+def test_fixed_obligations_total_caps_each_debt_at_its_balance():
+    household = model.Household(
+        people=(model.Person(name="You"),),
+        flows=(model.Flow(name="Rent", kind=model.FlowKind.FIXED_EXPENSE, monthly_amount=Decimal("1000")),),
+        assets=(model.Asset(name="Cash", value=Decimal("100"), access_days=0),),
+        debts=(
+            model.Debt(name="Nearly paid off", balance=Decimal("25"), minimum_monthly_payment=Decimal("100")),
+            model.Debt(name="Paid off", balance=Decimal("0"), minimum_monthly_payment=Decimal("50")),
+        ),
+        currency_label="£",
+        horizon_months=1,
+    )
+    projection = runway.project(household, shocks.major_expense(household))
+    ctx = build_context(household, [projection])
+    # What the simulator actually charges in month 0, not the sum of configured minimums (1150).
+    assert projection.months[0].fixed_obligations == Decimal("1025")
+    assert ctx["total_fixed"] == "£1,025"
