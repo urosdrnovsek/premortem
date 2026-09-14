@@ -138,16 +138,54 @@ class Household:
         return max(self.people, key=total_income)
 
 
-def _dec(value: object) -> Decimal:
-    """TOML has no Decimal type — floats/ints round-trip through Decimal(str(...))
-    because tomli_w writes floats using Python's shortest-round-trip repr."""
-    if isinstance(value, Decimal):
-        return value
-    return Decimal(str(value))
+# tomllib already gives us typed values, so a strict reader's only job is to refuse
+# the wrong type loudly instead of coercing it - `bool("false")` is True, `int(2.9)`
+# is 2, `Decimal("inf")` compares happily right up until it doesn't - and each of
+# those would quietly change a projection of a hand-edited file.
+_MISSING = object()
 
 
-def _num(value: Decimal) -> float:
-    return float(value)
+def _get(table: object, where: str, key: str, kind: type, default: object = _MISSING) -> object:
+    if not isinstance(table, dict):
+        raise ValueError(f"{where}: expected a table, got {table!r}")
+    if key in table:
+        value = table[key]
+    elif default is _MISSING:
+        raise ValueError(f"{where}: missing required field {key!r}")
+    else:
+        value = default  # checked and converted like a real value, so a Decimal field's 0 comes back as Decimal
+    # bool is an int subclass; a TOML `true` must never pass as a number.
+    if kind is Decimal:
+        ok = isinstance(value, (int, float, Decimal)) and not isinstance(value, bool)
+    else:
+        ok = isinstance(value, kind) and (kind is bool or not isinstance(value, bool))
+    if not ok:
+        wanted = {str: "a string", int: "a whole number", bool: "true or false", Decimal: "a number"}[kind]
+        raise ValueError(f"{where}: {key} must be {wanted}, got {value!r}")
+    if kind is Decimal:
+        # Decimal(str(float)) uses Python's shortest round-trip repr - the same
+        # repr tomli_w writes - so a saved file reloads to the value it was saved from.
+        value = Decimal(str(value))
+        if not value.is_finite():
+            raise ValueError(f"{where}: {key} must be a finite number, got {value!r}")
+    return value
+
+
+# Precision policy for the saved file. TOML has no Decimal type, so amounts are
+# written as floats; a float only reproduces a decimal exactly up to ~15
+# significant digits, so values are pinned to a fixed scale first - money to the
+# cent, ratios (haircuts, the income-reduction factor) to four places - which
+# keeps every realistic household inside the range that round-trips exactly.
+MONEY_PLACES = Decimal("0.01")
+RATIO_PLACES = Decimal("0.0001")
+
+
+def _money(value: Decimal) -> float:
+    return float(value.quantize(MONEY_PLACES))
+
+
+def _ratio(value: Decimal) -> float:
+    return float(value.quantize(RATIO_PLACES))
 
 
 def to_toml(household: Household) -> str:
@@ -157,17 +195,17 @@ def to_toml(household: Household) -> str:
             "horizon_months": household.horizon_months,
         },
         "assumptions": {
-            "major_expense_amount": _num(household.major_expense_amount),
+            "major_expense_amount": _money(household.major_expense_amount),
             "major_expense_label": household.major_expense_label,
-            "income_reduction_factor": _num(household.income_reduction_factor),
+            "income_reduction_factor": _ratio(household.income_reduction_factor),
         },
         "people": [
             {
                 "name": p.name,
                 "notice_period_months": p.notice_period_months,
-                "redundancy_lump_sum": _num(p.redundancy_lump_sum),
+                "redundancy_lump_sum": _money(p.redundancy_lump_sum),
                 "redundancy_target_asset": p.redundancy_target_asset or "",
-                "benefits_floor_monthly": _num(p.benefits_floor_monthly),
+                "benefits_floor_monthly": _money(p.benefits_floor_monthly),
                 "benefits_delay_months": p.benefits_delay_months,
             }
             for p in household.people
@@ -176,7 +214,7 @@ def to_toml(household: Household) -> str:
             {
                 "kind": f.kind.value,
                 "name": f.name,
-                "monthly_amount": _num(f.monthly_amount),
+                "monthly_amount": _money(f.monthly_amount),
                 "owner": f.owner or "",
                 "job_linked": f.job_linked,
             }
@@ -185,22 +223,29 @@ def to_toml(household: Household) -> str:
         "assets": [
             {
                 "name": a.name,
-                "value": _num(a.value),
+                "value": _money(a.value),
                 "access_days": a.access_days,
-                "haircut_pct": _num(a.haircut_pct),
+                "haircut_pct": _ratio(a.haircut_pct),
             }
             for a in household.assets
         ],
         "debts": [
             {
                 "name": d.name,
-                "balance": _num(d.balance),
-                "minimum_monthly_payment": _num(d.minimum_monthly_payment),
+                "balance": _money(d.balance),
+                "minimum_monthly_payment": _money(d.minimum_monthly_payment),
             }
             for d in household.debts
         ],
     }
     return tomli_w.dumps(doc)
+
+
+def _section(doc: dict, name: str) -> list:
+    entries = doc.get(name, [])
+    if not isinstance(entries, list):
+        raise ValueError(f"{name}: expected an array of tables ([[{name}]]), got {entries!r}")
+    return entries
 
 
 def from_toml(text: str) -> Household:
@@ -210,41 +255,41 @@ def from_toml(text: str) -> Household:
 
     people = tuple(
         Person(
-            name=p["name"],
-            notice_period_months=int(p.get("notice_period_months", 0)),
-            redundancy_lump_sum=_dec(p.get("redundancy_lump_sum", 0)),
-            redundancy_target_asset=p.get("redundancy_target_asset") or None,
-            benefits_floor_monthly=_dec(p.get("benefits_floor_monthly", 0)),
-            benefits_delay_months=int(p.get("benefits_delay_months", 0)),
+            name=_get(p, f"people[{i}]", "name", str),
+            notice_period_months=_get(p, f"people[{i}]", "notice_period_months", int, 0),
+            redundancy_lump_sum=_get(p, f"people[{i}]", "redundancy_lump_sum", Decimal, 0),
+            redundancy_target_asset=_get(p, f"people[{i}]", "redundancy_target_asset", str, "") or None,
+            benefits_floor_monthly=_get(p, f"people[{i}]", "benefits_floor_monthly", Decimal, 0),
+            benefits_delay_months=_get(p, f"people[{i}]", "benefits_delay_months", int, 0),
         )
-        for p in doc.get("people", [])
+        for i, p in enumerate(_section(doc, "people"))
     )
     flows = tuple(
         Flow(
-            name=f["name"],
-            kind=FlowKind(f["kind"]),
-            monthly_amount=_dec(f["monthly_amount"]),
-            owner=f.get("owner") or None,
-            job_linked=bool(f.get("job_linked", False)),
+            name=_get(f, f"flows[{i}]", "name", str),
+            kind=FlowKind(_get(f, f"flows[{i}]", "kind", str)),
+            monthly_amount=_get(f, f"flows[{i}]", "monthly_amount", Decimal),
+            owner=_get(f, f"flows[{i}]", "owner", str, "") or None,
+            job_linked=_get(f, f"flows[{i}]", "job_linked", bool, False),
         )
-        for f in doc.get("flows", [])
+        for i, f in enumerate(_section(doc, "flows"))
     )
     assets = tuple(
         Asset(
-            name=a["name"],
-            value=_dec(a["value"]),
-            access_days=int(a["access_days"]),
-            haircut_pct=_dec(a.get("haircut_pct", 0)),
+            name=_get(a, f"assets[{i}]", "name", str),
+            value=_get(a, f"assets[{i}]", "value", Decimal),
+            access_days=_get(a, f"assets[{i}]", "access_days", int),
+            haircut_pct=_get(a, f"assets[{i}]", "haircut_pct", Decimal, 0),
         )
-        for a in doc.get("assets", [])
+        for i, a in enumerate(_section(doc, "assets"))
     )
     debts = tuple(
         Debt(
-            name=d["name"],
-            balance=_dec(d["balance"]),
-            minimum_monthly_payment=_dec(d["minimum_monthly_payment"]),
+            name=_get(d, f"debts[{i}]", "name", str),
+            balance=_get(d, f"debts[{i}]", "balance", Decimal),
+            minimum_monthly_payment=_get(d, f"debts[{i}]", "minimum_monthly_payment", Decimal),
         )
-        for d in doc.get("debts", [])
+        for i, d in enumerate(_section(doc, "debts"))
     )
 
     return Household(
@@ -252,9 +297,9 @@ def from_toml(text: str) -> Household:
         flows=flows,
         assets=assets,
         debts=debts,
-        currency_label=meta.get("currency_label", ""),
-        horizon_months=int(meta.get("horizon_months", 24)),
-        major_expense_amount=_dec(assumptions.get("major_expense_amount", 3000)),
-        major_expense_label=assumptions.get("major_expense_label", "Boiler / major home repair"),
-        income_reduction_factor=_dec(assumptions.get("income_reduction_factor", "0.5")),
+        currency_label=_get(meta, "meta", "currency_label", str, ""),
+        horizon_months=_get(meta, "meta", "horizon_months", int, 24),
+        major_expense_amount=_get(assumptions, "assumptions", "major_expense_amount", Decimal, 3000),
+        major_expense_label=_get(assumptions, "assumptions", "major_expense_label", str, "Boiler / major home repair"),
+        income_reduction_factor=_get(assumptions, "assumptions", "income_reduction_factor", Decimal, Decimal("0.5")),
     )
